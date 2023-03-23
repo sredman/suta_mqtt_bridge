@@ -98,7 +98,7 @@ class MqttBridge:
                     except:
                         # We are closing down. Send out a notice that the devices we control are offline.
                         for mqtt_device in self.tracked_devices.values():
-                            await mqtt_device.send_update(client, online=False)
+                            await self._remove_tracked_device(client, mqtt_device)
                         for mqtt_device in self.unpaired_devices.values():
                             await self._remove_unpaired_device(client, mqtt_device)
                         raise
@@ -190,6 +190,14 @@ class MqttBridge:
 
             self.incoming_tracked_devices = {}
 
+            for key in self.outgoing_tracked_devices:
+                device = self.tracked_devices[key]
+                await self.unsubscribe_mqtt_topic(mqtt, device)
+                await self._remove_unpaired_device(mqtt, device)
+                del self.tracked_devices[key]
+
+            self.outgoing_tracked_devices = set()
+
             self.done_processing_new_devices.set()
 
     async def start_outgoing_message_handler(self, mqtt) -> None:
@@ -200,6 +208,13 @@ class MqttBridge:
     async def add_tracked_device(self, key: str, device: MqttDevice) -> None:
         await self.done_processing_new_devices.wait()
         self.incoming_tracked_devices[key] = device
+        self.new_device_event.set()
+
+    async def remove_tracked_device(self, key:str) -> None:
+        await self.done_processing_new_devices.wait()
+        device = self.tracked_devices[key]
+        await self.enqueue_update(device, online=False)
+        self.outgoing_tracked_devices.add(key)
         self.new_device_event.set()
 
     async def add_unpaired_device(self, key: str, device: MqttDevice) -> None:
@@ -218,6 +233,10 @@ class MqttBridge:
         """
         state = await device.get_update(online=online)
         await self.outgoing_messages.put(state)
+
+    async def _remove_tracked_device(self, mqtt: Client, device: MqttDevice) -> None:
+        message: MqttPayload = await device.get_update(online=False)
+        await mqtt.publish(message.topic, json.dumps(message.payload), retain=message.retain)
 
     async def _remove_unpaired_device(self, mqtt: Client, device: MqttDevice) -> None:
         entities: List[MqttPayload] = device.get_unpaired_entities(discovery_prefix=self.discovery_prefix)
