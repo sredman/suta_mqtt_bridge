@@ -63,6 +63,8 @@ class MqttBridge:
         self.done_processing_new_devices = asyncio.Event()
         self.done_processing_new_devices.set()
 
+        self.outgoing_messages = asyncio.Queue()
+
         self.retry_interval_secs = 1
 
         self.logger = logging.getLogger(__name__)
@@ -92,6 +94,7 @@ class MqttBridge:
                         async with asyncio.TaskGroup() as tg:
                             tg.create_task(self.start_mqtt_listener(client))
                             tg.create_task(self.start_device_listener(client))
+                            tg.create_task(self.start_outgoing_message_handler(client))
                     except:
                         # We are closing down. Send out a notice that the devices we control are offline.
                         for mqtt_device in self.tracked_devices.values():
@@ -183,10 +186,16 @@ class MqttBridge:
                 self.tracked_devices[key] = device
                 await self.subscribe_mqtt_topic(mqtt, device)
                 await self.send_entity_discovery(mqtt, device)
+                await self.enqueue_update(device, online=True)
 
             self.incoming_tracked_devices = {}
 
             self.done_processing_new_devices.set()
+
+    async def start_outgoing_message_handler(self, mqtt) -> None:
+        while True:
+            message: MqttPayload = await self.outgoing_messages.get()
+            await mqtt.publish(message.topic, json.dumps(message.payload), retain=message.retain)
 
     async def add_tracked_device(self, key: str, device: MqttDevice) -> None:
         await self.done_processing_new_devices.wait()
@@ -202,6 +211,13 @@ class MqttBridge:
         await self.done_processing_new_devices.wait()
         self.outgoing_unpaired_devices.add(key)
         self.new_device_event.set()
+
+    async def enqueue_update(self, device: MqttDevice, online: bool) -> None:
+        """
+        Request an update message be sent
+        """
+        state = await device.get_update(online=online)
+        await self.outgoing_messages.put(state)
 
     async def _remove_unpaired_device(self, mqtt: Client, device: MqttDevice) -> None:
         entities: List[MqttPayload] = device.get_unpaired_entities(discovery_prefix=self.discovery_prefix)

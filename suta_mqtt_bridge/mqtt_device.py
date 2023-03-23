@@ -46,3 +46,12 @@ class MqttDevice(ABC):
         @param message: The MQTT message sent with this payload
         """
         pass
+
+    @abstractmethod
+    async def get_update(self, online: bool) -> MqttPayload:
+        """
+        Get a message indicating the current state of this device
+
+        @param offline: Indicate whether this device is available
+        """
+        pass

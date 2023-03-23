@@ -42,6 +42,9 @@ class MqttSutaBed(MqttDevice):
     def topic_root(self) -> str:
         return f"{SUTA_MANUFACTURER}/{self.sanitised_mac()}"
 
+    def state_topic(self) -> str:
+        return f"{self.topic_root()}/state"
+
     def pairing_button_command_topic(self) -> str:
         return f"{self.topic_root()}/pairing_button/set"
 
@@ -73,6 +76,8 @@ class MqttSutaBed(MqttDevice):
                 "unique_id": f"{self.bed.device.address}_raise_head_button",
                 "icon": "mdi:coffee-off-outline",
                 "command_topic": self.raise_head_button_command_topic(),
+                "availability_topic": self.state_topic(),
+                "availability_template": "{{ value_json.availability }}",
                 },
             )
         ]
@@ -84,3 +89,13 @@ class MqttSutaBed(MqttDevice):
         else:
             logging.error(f"Unknown command: {topic}")
         pass
+
+    async def get_update(self, online: bool) -> MqttPayload:
+        state = {
+            "availability": "online" if online else "offline",
+        }
+        update_payload: MqttPayload = MqttPayload(
+            topic=self.state_topic(),
+            payload=state
+        )
+        return update_payload
