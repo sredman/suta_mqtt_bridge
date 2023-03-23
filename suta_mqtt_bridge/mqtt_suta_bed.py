@@ -86,6 +86,14 @@ class MqttSutaBed(MqttDevice):
         if topic == self.pairing_button_command_topic():
             await bridge.remove_unpaired_device(self.bed.device.address)
             await bridge.add_tracked_device(self.bed.device.address, self)
+        elif topic == self.raise_head_button_command_topic():
+            # NOTE: This will only work if the Bluetooth is already connected
+            # because the suta_ble_bed logic needs to start the scanner to connect,
+            # but we already have the scanner running.
+            # Refactor the scanner logic so the suta_ble_bed expects the client to hold it open? Keeping the
+            # scanner running is maybe better than constantly turning it on and off, given we need it to have
+            # scanned the bed any time we want to do anything with it.
+            await self.bed.raise_head()
         else:
             logging.error(f"Unknown command: {topic}")
         pass
