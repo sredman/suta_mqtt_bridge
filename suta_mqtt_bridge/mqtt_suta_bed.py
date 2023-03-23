@@ -59,7 +59,7 @@ class MqttSutaBed(MqttDevice):
                 "name": f"Pair With Device",
                 "device": self.get_device_definition(),
                 "unique_id": f"{self.bed.device.address}_pairing_button",
-                "icon": "mdi:coffee-off-outline",
+                "icon": "mdi:bed",
                 "command_topic": self.pairing_button_command_topic(),
                 },
             retain=False
@@ -74,7 +74,7 @@ class MqttSutaBed(MqttDevice):
                 "name": f"Raise head",
                 "device": self.get_device_definition(),
                 "unique_id": f"{self.bed.device.address}_raise_head_button",
-                "icon": "mdi:coffee-off-outline",
+                "icon": "mdi:head",
                 "command_topic": self.raise_head_button_command_topic(),
                 "availability_topic": self.state_topic(),
                 "availability_template": "{{ value_json.availability }}",
