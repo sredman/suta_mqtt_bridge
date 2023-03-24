@@ -50,6 +50,9 @@ class MqttSutaBed(MqttDevice):
 
     def raise_head_button_command_topic(self) -> str:
         return f"{self.topic_root()}/raise_head/set"
+
+    def lower_head_button_command_topic(self) -> str:
+        return f"{self.topic_root()}/lower_head/set"
     
     def get_unpaired_entities(self, discovery_prefix) -> List[MqttPayload]:
         return [
@@ -79,7 +82,20 @@ class MqttSutaBed(MqttDevice):
                 "availability_topic": self.state_topic(),
                 "availability_template": "{{ value_json.availability }}",
                 },
-            )
+            ),
+
+            MqttPayload(
+            topic= f"{discovery_prefix}/button/{self.sanitised_mac()}/lower_head_button/config",
+            payload={
+                "name": f"Lower head",
+                "device": self.get_device_definition(),
+                "unique_id": f"{self.bed.device.address}_lower_head_button",
+                "icon": "mdi:head",
+                "command_topic": self.lower_head_button_command_topic(),
+                "availability_topic": self.state_topic(),
+                "availability_template": "{{ value_json.availability }}",
+                },
+            ),
         ]
     
     async def handle_command(self, bridge, topic: str, message: str) -> None:
@@ -94,6 +110,8 @@ class MqttSutaBed(MqttDevice):
             # scanner running is maybe better than constantly turning it on and off, given we need it to have
             # scanned the bed any time we want to do anything with it.
             await self.bed.raise_head()
+        elif topic == self.lower_head_button_command_topic():
+            await self.bed.lower_head()
         else:
             logging.error(f"Unknown command: {topic}")
         pass
