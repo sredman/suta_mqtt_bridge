@@ -1,3 +1,3 @@
 asyncio-mqtt>=0.16.1
-suta-ble-bed>=0.2.0
+suta-ble-bed>=0.3.2
 PyYAML>=5.3
