@@ -157,6 +157,7 @@ class MqttSutaBed(MqttDevice):
                 "command_topic": self.raise_head_button_command_topic(),
                 "availability_topic": self.state_topic(),
                 "availability_template": "{{ value_json.availability }}",
+                "enabled_by_default": True,
                 },
             ),
 
@@ -170,6 +171,7 @@ class MqttSutaBed(MqttDevice):
                 "command_topic": self.lower_head_button_command_topic(),
                 "availability_topic": self.state_topic(),
                 "availability_template": "{{ value_json.availability }}",
+                "enabled_by_default": True,
                 },
             ),
 
@@ -201,6 +203,7 @@ class MqttSutaBed(MqttDevice):
                 "command_topic": self.raise_feet_button_command_topic(),
                 "availability_topic": self.state_topic(),
                 "availability_template": "{{ value_json.availability }}",
+                "enabled_by_default": True,
                 },
             ),
 
@@ -214,6 +217,7 @@ class MqttSutaBed(MqttDevice):
                 "command_topic": self.lower_feet_button_command_topic(),
                 "availability_topic": self.state_topic(),
                 "availability_template": "{{ value_json.availability }}",
+                "enabled_by_default": True,
                 },
             ),
 
@@ -258,6 +262,7 @@ class MqttSutaBed(MqttDevice):
                 "command_topic": self.lounge_button_command_topic(),
                 "availability_topic": self.state_topic(),
                 "availability_template": "{{ value_json.availability }}",
+                "enabled_by_default": True,
                 },
             ),
         ]
