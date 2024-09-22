@@ -84,6 +84,12 @@ class MqttSutaBed(MqttDevice):
     def lower_feet_button_command_topic(self) -> str:
         return f"{self.topic_root()}/lower_feet/set"
 
+    def flat_button_command_topic(self) -> str:
+        return f"{self.topic_root()}/flat/set"
+
+    def lounge_button_command_topic(self) -> str:
+        return f"{self.topic_root()}/lounge/set"
+
     async def position_update_loop(self) -> None:
         while True:
             await self.target_position_changed.wait()
@@ -212,6 +218,32 @@ class MqttSutaBed(MqttDevice):
                 "availability_template": "{{ value_json.availability }}",
                 },
             ),
+
+            MqttPayload(
+            topic=f"{discovery_prefix}/button/{self.sanitised_mac()}/flat_button/config",
+            payload={
+                "name": f"Flat",
+                "device": self.get_device_definition(),
+                "unique_id": f"{self.bed.device.address}_flat_button",
+                "icon": "mdi:seat-flat",
+                "command_topic": self.flat_button_command_topic(),
+                "availability_topic": self.state_topic(),
+                "availability_template": "{{ value_json.availability }}",
+                },
+            ),
+
+            MqttPayload(
+            topic=f"{discovery_prefix}/button/{self.sanitised_mac()}/lounge_button/config",
+            payload={
+                "name": f"Lounge",
+                "device": self.get_device_definition(),
+                "unique_id": f"{self.bed.device.address}_lounge_button",
+                "icon": "mdi:seat-flat-angled",
+                "command_topic": self.lounge_button_command_topic(),
+                "availability_topic": self.state_topic(),
+                "availability_template": "{{ value_json.availability }}",
+                },
+            ),
         ]
 
     async def handle_command(self, bridge, topic: str, message: str) -> None:
@@ -232,6 +264,10 @@ class MqttSutaBed(MqttDevice):
         elif topic == self.feet_control_command_topic():
             target_percent = float(message)
             self.target_feet_position = round(FEET_POSITION_MAX * target_percent/100)
+        elif topic == self.flat_button_command_topic():
+            await self.bed.flat()
+        elif topic == self.lounge_button_command_topic():
+            await self.bed.lounge()
         else:
             logging.error(f"Unknown command: {topic}")
         pass
