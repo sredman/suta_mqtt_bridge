@@ -28,6 +28,16 @@ class MqttSutaBed(MqttDevice):
     def __init__(self, bed: BleSutaBed) -> None:
         self.bed: BleSutaBed = bed
 
+        self._head_position: int = 0
+
+        self.target_head_position: int = 0
+        self.target_position_changed = asyncio.Event()
+
+        self.position_update_loop_task = asyncio.create_task(self.position_update_loop())
+
+    def __del__(self) -> None:
+        self.position_update_loop_task.cancel()
+
     def sanitised_mac(self) -> str:
         '''
         Return my connection address in a form which is suitable where colons aren't
@@ -62,27 +72,19 @@ class MqttSutaBed(MqttDevice):
 
     def lower_head_button_command_topic(self) -> str:
         return f"{self.topic_root()}/lower_head/set"
-    
-    async def control_head(self, position: float) -> None:
-        """
-        Decode the position, which is a percentage value, to a number of moves of the head of the bed.
-        As far as I can tell, it is not possible to ask the bed what position it is at,
-        so there is no way to know we are doing the right thing.
-        """
-        target_position = round(HEAD_POSITION_MAX * position/100)
 
-        if target_position == self.head_position:
-            return
-        elif target_position < self.head_position:
-            while target_position < self.head_position:
-                await self.bed.lower_head()
-                await asyncio.sleep(0.5)
-                self.head_position = max(self.head_position - 1, 0)
-        elif target_position > self.head_position:
-            while target_position > self.head_position:
-                await self.bed.raise_head()
-                await asyncio.sleep(0.5)
-                self.head_position = min(self.head_position + 1, HEAD_POSITION_MAX)
+    async def position_update_loop(self) -> None:
+        while True:
+            await self.target_position_changed.wait()
+            if self.target_head_position != self._head_position:
+                if self.target_head_position > self._head_position:
+                    await self.bed.raise_head()
+                    self._head_position = min(self._head_position + 1, HEAD_POSITION_MAX)
+                elif self.target_head_position < self._head_position:
+                    await self.bed.lower_head()
+                    self._head_position = max(self._head_position - 1, 0)
+                self.target_position_changed.clear()
+            await asyncio.sleep(0.5)
 
     def get_unpaired_entities(self, discovery_prefix) -> List[MqttPayload]:
         return [
@@ -151,23 +153,24 @@ class MqttSutaBed(MqttDevice):
             await bridge.remove_unpaired_device(self.bed.device.address)
             await bridge.add_tracked_device(self.bed.device.address, self)
         elif topic == self.raise_head_button_command_topic():
-            await self.bed.raise_head()
-            self.head_position += 1
+            self.target_head_position += 1
         elif topic == self.lower_head_button_command_topic():
-            await self.bed.lower_head()
-            self.head_position -= 1
+            self.target_head_position -= 1
         elif topic == self.head_control_command_topic():
-            await self.control_head(float(message))
+            target_percent = float(message)
+            self.target_head_position = round(HEAD_POSITION_MAX * target_percent/100)
         else:
             logging.error(f"Unknown command: {topic}")
         pass
+
+        self.target_position_changed.set()
 
     async def get_update(self, online: bool) -> MqttPayload:
         state = {
             "availability": "online" if online else "offline",
             # Convert the positions back to percentage
-            "head_position": self.head_position * 100 // HEAD_POSITION_MAX,
-            "feet_position": self.feet_position * 100 // FEET_POSITION_MAX,
+            "head_position": self._head_position * 100 // HEAD_POSITION_MAX,
+            "feet_position": self._feet_position * 100 // FEET_POSITION_MAX,
         }
         update_payload: MqttPayload = MqttPayload(
             topic=self.state_topic(),
