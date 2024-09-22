@@ -87,7 +87,7 @@ class MqttSutaBed(MqttDevice):
     def get_unpaired_entities(self, discovery_prefix) -> List[MqttPayload]:
         return [
             MqttPayload(
-            topic= f"{discovery_prefix}/button/{self.sanitised_mac()}/pairing_button/config",
+            topic=f"{discovery_prefix}/button/{self.sanitised_mac()}/pairing_button/config",
             payload={
                 "name": f"Pair With Device",
                 "device": self.get_device_definition(),
@@ -98,11 +98,11 @@ class MqttSutaBed(MqttDevice):
             retain=False
             )
         ]
-    
+
     def get_discovery_entities(self, discovery_prefix: str) -> List[MqttPayload]:
         return [
             MqttPayload(
-            topic= f"{discovery_prefix}/button/{self.sanitised_mac()}/raise_head_button/config",
+            topic=f"{discovery_prefix}/button/{self.sanitised_mac()}/raise_head_button/config",
             payload={
                 "name": f"Raise head",
                 "device": self.get_device_definition(),
@@ -115,7 +115,7 @@ class MqttSutaBed(MqttDevice):
             ),
 
             MqttPayload(
-            topic= f"{discovery_prefix}/button/{self.sanitised_mac()}/lower_head_button/config",
+            topic=f"{discovery_prefix}/button/{self.sanitised_mac()}/lower_head_button/config",
             payload={
                 "name": f"Lower head",
                 "device": self.get_device_definition(),
@@ -128,7 +128,7 @@ class MqttSutaBed(MqttDevice):
             ),
 
             MqttPayload(
-            topic= f"{discovery_prefix}/number/{self.sanitised_mac()}/head_control/config",
+            topic=f"{discovery_prefix}/number/{self.sanitised_mac()}/head_control/config",
             payload={
                 "name": f"Head",
                 "device": self.get_device_definition(),
