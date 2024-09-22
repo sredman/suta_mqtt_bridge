@@ -29,8 +29,10 @@ class MqttSutaBed(MqttDevice):
         self.bed: BleSutaBed = bed
 
         self._head_position: int = 0
+        self._feet_position: int = 0
 
         self.target_head_position: int = 0
+        self.target_feet_position: int = 0
         self.target_position_changed = asyncio.Event()
 
         self.position_update_loop_task = asyncio.create_task(self.position_update_loop())
@@ -73,9 +75,21 @@ class MqttSutaBed(MqttDevice):
     def lower_head_button_command_topic(self) -> str:
         return f"{self.topic_root()}/lower_head/set"
 
+    def feet_control_command_topic(self) -> str:
+        return f"{self.topic_root()}/feet_control/set"
+
+    def raise_feet_button_command_topic(self) -> str:
+        return f"{self.topic_root()}/raise_feet/set"
+
+    def lower_feet_button_command_topic(self) -> str:
+        return f"{self.topic_root()}/lower_feet/set"
+
     async def position_update_loop(self) -> None:
         while True:
             await self.target_position_changed.wait()
+            if self.target_head_position != self._head_position and self.target_feet_position != self._feet_position:
+                # TODO: Move both head and feet at the same time
+                pass
             if self.target_head_position != self._head_position:
                 if self.target_head_position > self._head_position:
                     await self.bed.raise_head()
@@ -83,6 +97,14 @@ class MqttSutaBed(MqttDevice):
                 elif self.target_head_position < self._head_position:
                     await self.bed.lower_head()
                     self._head_position = max(self._head_position - 1, 0)
+            if self.target_feet_position != self._feet_position:
+                if self.target_feet_position > self._feet_position:
+                    await self.bed.raise_feet()
+                    self._feet_position = min(self._feet_position + 1, FEET_POSITION_MAX)
+                elif self.target_feet_position < self._feet_position:
+                    await self.bed.lower_feet()
+                    self._feet_position = max(self._feet_position - 1, 0)
+            if self.target_head_position == self._head_position and self.target_feet_position == self._feet_position:
                 self.target_position_changed.clear()
             await asyncio.sleep(0.5)
 
@@ -146,8 +168,52 @@ class MqttSutaBed(MqttDevice):
                 "availability_template": "{{ value_json.availability }}",
                 },
             ),
+
+            MqttPayload(
+            topic=f"{discovery_prefix}/button/{self.sanitised_mac()}/raise_feet_button/config",
+            payload={
+                "name": f"Raise feet",
+                "device": self.get_device_definition(),
+                "unique_id": f"{self.bed.device.address}_raise_feet_button",
+                "icon": "mdi:foot-print",
+                "command_topic": self.raise_feet_button_command_topic(),
+                "availability_topic": self.state_topic(),
+                "availability_template": "{{ value_json.availability }}",
+                },
+            ),
+
+            MqttPayload(
+            topic=f"{discovery_prefix}/button/{self.sanitised_mac()}/lower_feet_button/config",
+            payload={
+                "name": f"Lower feet",
+                "device": self.get_device_definition(),
+                "unique_id": f"{self.bed.device.address}_lower_feet_button",
+                "icon": "mdi:foot-print",
+                "command_topic": self.lower_feet_button_command_topic(),
+                "availability_topic": self.state_topic(),
+                "availability_template": "{{ value_json.availability }}",
+                },
+            ),
+
+            MqttPayload(
+            topic=f"{discovery_prefix}/number/{self.sanitised_mac()}/feet_control/config",
+            payload={
+                "name": f"Feet",
+                "device": self.get_device_definition(),
+                "unique_id": f"{self.bed.device.address}_feet_control",
+                "icon": "mdi:foot-print",
+                "min": 0,
+                "max": 100,
+                "unit_of_measurement": "%",
+                "command_topic": self.feet_control_command_topic(),
+                "state_topic": self.state_topic(),
+                "value_template": "{{ value_json.feet_position }}",
+                "availability_topic": self.state_topic(),
+                "availability_template": "{{ value_json.availability }}",
+                },
+            ),
         ]
-    
+
     async def handle_command(self, bridge, topic: str, message: str) -> None:
         if topic == self.pairing_button_command_topic():
             await bridge.remove_unpaired_device(self.bed.device.address)
@@ -159,6 +225,13 @@ class MqttSutaBed(MqttDevice):
         elif topic == self.head_control_command_topic():
             target_percent = float(message)
             self.target_head_position = round(HEAD_POSITION_MAX * target_percent/100)
+        elif topic == self.raise_feet_button_command_topic():
+            self.target_feet_position += 1
+        elif topic == self.lower_feet_button_command_topic():
+            self.target_feet_position -= 1
+        elif topic == self.feet_control_command_topic():
+            target_percent = float(message)
+            self.target_feet_position = round(FEET_POSITION_MAX * target_percent/100)
         else:
             logging.error(f"Unknown command: {topic}")
         pass
