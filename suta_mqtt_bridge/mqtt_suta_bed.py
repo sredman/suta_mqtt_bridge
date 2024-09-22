@@ -129,6 +129,18 @@ class MqttSutaBed(MqttDevice):
             )
         ]
 
+    async def handle_flat(self) -> None:
+        '''
+        Handle flat command and reset position counters to known values
+        '''
+        await self.bed.flat()
+        # Reset positions to known values
+        self.target_position_changed.clear()
+        self._feet_position = 0
+        self._head_position = 0
+        self.target_feet_position = 0
+        self.target_head_position = 0
+
     def get_discovery_entities(self, discovery_prefix: str) -> List[MqttPayload]:
         return [
             MqttPayload(
@@ -265,7 +277,7 @@ class MqttSutaBed(MqttDevice):
             target_percent = float(message)
             self.target_feet_position = round(FEET_POSITION_MAX * target_percent/100)
         elif topic == self.flat_button_command_topic():
-            await self.bed.flat()
+            await self.handle_flat()
         elif topic == self.lounge_button_command_topic():
             await self.bed.lounge()
         else:
