@@ -53,6 +53,9 @@ class SutaMqttBridge:
                     # (To prevent this from hapening, delete the device in Home Assistant or manually remove the MQTT topic.)
                     await controller.connect(wrapped_bed.bed)
                     await self.mqtt_bridge.add_tracked_device(key = bed.device.address, device = wrapped_bed)
+                elif bed.device.address in self.mqtt_bridge.tracked_devices:
+                    # This is a device we are already tracking. Do nothing.
+                    pass
                 elif not bed.device.address in self.mqtt_bridge.unpaired_devices:
                     # This is a device we have not seen before. Add it as unpaired.
                     await self.mqtt_bridge.add_unpaired_device(key = bed.device.address, device = wrapped_bed)
