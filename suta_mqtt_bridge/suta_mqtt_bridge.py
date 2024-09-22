@@ -59,3 +59,38 @@ class SutaMqttBridge:
 
                 # Yield the thread to avoid starving anyone else, since the BLE discovery can be noisy
                 await asyncio.sleep(0)
+
+        while True:
+            discovered_devices = [device for device in await suta_scanner.discover(mac = None, adapter = self.adapter, wait = self.bluetooth_wait_interval_seconds)]
+            discovered_device_addresses = [device.address for device in discovered_devices]
+            newly_discovered_devices = [device for device in discovered_devices if device.address not in self.mqtt_bridge.tracked_devices and device not in self.mqtt_bridge.unpaired_devices]
+            for device in newly_discovered_devices:
+                pass
+
+            missing_devices = [] # Paired devices which we could not find
+            for addr in self.mqtt_bridge.tracked_devices:
+                device = self.mqtt_bridge.tracked_devices[addr]
+                if addr not in discovered_device_addresses:
+                    # We are supposed to have been controlling this device but it is no longer in range. Mark it as such.
+                    missing_devices.append(addr)
+                else:
+                    try:
+                        await self.mqtt_bridge.enqueue_update(device, online=True)
+                    except BleakError as be:
+                        if addr in self.tracked_mugs:
+                            missing_devices.append(addr)
+                        logging.warning(f"Error while communicating with device: {be}")
+
+            for addr in missing_devices:
+                await self.mqtt_bridge.remove_tracked_device(addr)
+
+            gone_unpaired_device_addresses = set()
+            for unpaired_address in self.mqtt_bridge.unpaired_devices:
+                # Clean up any unpaired devices we no longer see
+                if not unpaired_address in discovered_device_addresses:
+                    gone_unpaired_device_addresses.add(unpaired_address)
+
+            for gone_device_address in gone_unpaired_device_addresses:
+                await self.mqtt_bridge.remove_unpaired_device(gone_device_address)
+
+            await asyncio.sleep(self.update_interval)
