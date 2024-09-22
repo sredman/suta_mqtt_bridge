@@ -82,7 +82,7 @@ class MqttSutaBed(MqttDevice):
             while target_position > self.head_position:
                 await self.bed.raise_head()
                 await asyncio.sleep(0.5)
-                self.head_position = min(self.head_position + 1, 0)
+                self.head_position = min(self.head_position + 1, HEAD_POSITION_MAX)
 
     def get_unpaired_entities(self, discovery_prefix) -> List[MqttPayload]:
         return [
