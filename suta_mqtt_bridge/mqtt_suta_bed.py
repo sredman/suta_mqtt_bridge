@@ -35,9 +35,12 @@ class MqttSutaBed(MqttDevice):
         self.target_feet_position: int = 0
         self.target_position_changed = asyncio.Event()
 
+        self.should_exit_task = False
         self.position_update_loop_task = asyncio.create_task(self.position_update_loop())
 
     def __del__(self) -> None:
+        self.should_exit_task = True
+        self.target_position_changed.set()
         self.position_update_loop_task.cancel()
 
     def sanitised_mac(self) -> str:
@@ -93,6 +96,7 @@ class MqttSutaBed(MqttDevice):
     async def position_update_loop(self) -> None:
         while True:
             await self.target_position_changed.wait()
+            if (self.should_exit_task): return
             if self.target_head_position != self._head_position and self.target_feet_position != self._feet_position:
                 # TODO: Move both head and feet at the same time
                 pass
