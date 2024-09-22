@@ -41,6 +41,9 @@ class SutaMqttBridge:
             tg.create_task(self.start_device_scanning())
 
     async def start_device_scanning(self) -> None:
+        # Wait for existing devices to be populated
+        await self.mqtt_bridge.done_processing_existing_known_devices_event.wait()
+
         async with SutaBleBedController() as controller:
             async for bed in controller.devices():
                 logger.info(f"Discovered {bed.device}")

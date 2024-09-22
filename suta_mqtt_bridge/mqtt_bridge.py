@@ -72,6 +72,7 @@ class MqttBridge:
         # Devices which we know about from seeing thier MQTT advertisements,
         # but with which we may or may not be connected.
         self.known_devices: Set[str] = set()
+        self.done_processing_existing_known_devices_event = asyncio.Event()
 
     def validate_parameters(self):
         unsupplied_params = [var for var in vars(self) if getattr(self, var) is None]
@@ -132,6 +133,8 @@ class MqttBridge:
                 else:
                     # Non-retained messages indicate a device which is not "known", maybe in pairing state at best.
                     pass
+            if len(mqtt.messages) == 0:
+                self.done_processing_existing_known_devices_event.set()
 
             if topic.startswith(self.command_prefix) and topic.endswith("set"):
                 '''
