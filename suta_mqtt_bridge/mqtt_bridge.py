@@ -11,7 +11,7 @@ from consts import MqttPayload
 from mqtt_device import MqttDevice
 
 import asyncio
-from asyncio_mqtt import Client, MqttError
+from aiomqtt import Client, MqttError
 import json
 import logging
 from typing import Dict, Set, List
@@ -107,54 +107,53 @@ class MqttBridge:
                 await asyncio.sleep(self.retry_interval_secs)
 
     async def start_mqtt_listener(self, mqtt: Client):
-        async with mqtt.messages() as messages:
-            await mqtt.subscribe(f"{self.discovery_prefix}/#") # Listen for knowledge of device we cannot see
-            async for message in messages:
-                topic = message.topic.value
-                if topic.startswith(f"{self.discovery_prefix}"):
-                    '''
-                    Look for MQTT messages indicating devices which have been discovered in the past,
-                    which we should be on the lookout for.
-                    These devices may be from other bridges running on the same MQTT server,
-                    so we _cannot_ expect that they are paired.
-                    '''
-                    if message.payload and message.retain != 0:
-                        data = json.loads(message.payload)
-                        if data and "device" in data:
-                            device = data["device"]
-                            if "connections" in device and "manufacturer" in device:
-                                if device["manufacturer"] in self.manufacturer_strings:
-                                    connections = device["connections"]
-                                    self.known_devices.add(connections[0][1])
-                    elif message.payload is None:
-                        # This is a device which is being deleted
-                        # TODO: Handle this case, so that we don't immediately re-discover mugs which the user has tried to delete.
-                        pass
-                    else:
-                        # Non-retained messages indicate a device which is not "known", maybe in pairing state at best.
-                        pass
+        await mqtt.subscribe(f"{self.discovery_prefix}/#") # Listen for knowledge of device we cannot see
+        async for message in mqtt.messages:
+            topic = message.topic.value
+            if topic.startswith(f"{self.discovery_prefix}"):
+                '''
+                Look for MQTT messages indicating devices which have been discovered in the past,
+                which we should be on the lookout for.
+                These devices may be from other bridges running on the same MQTT server,
+                so we _cannot_ expect that they are paired.
+                '''
+                if message.payload and message.retain != 0:
+                    data = json.loads(message.payload)
+                    if data and "device" in data:
+                        device = data["device"]
+                        if "connections" in device and "manufacturer" in device:
+                            if device["manufacturer"] in self.manufacturer_strings:
+                                connections = device["connections"]
+                                self.known_devices.add(connections[0][1])
+                elif message.payload is None:
+                    # This is a device which is being deleted
+                    # TODO: Handle this case, so that we don't immediately re-discover mugs which the user has tried to delete.
+                    pass
+                else:
+                    # Non-retained messages indicate a device which is not "known", maybe in pairing state at best.
+                    pass
 
-                if topic.startswith(self.command_prefix) and topic.endswith("set"):
-                    '''
-                    Look for messages indicating a command from the user.
-                    TODO: Make this section gracefully accept devices which are handled by another MQTT instance
-                    '''
-                    # Get the device to which this message belongs
-                    # There is certainly a better way to do this but I am lazy
-                    matching_devices = [mqtt_device for mqtt_device in self.tracked_devices.values() if topic.startswith(mqtt_device.topic_root())]
-                    matching_devices = matching_devices + [mqtt_device for mqtt_device in self.unpaired_devices.values() if topic.startswith(mqtt_device.topic_root())]
-                    if len(matching_devices) == 0:
-                        logging.error(f"No devices matched {topic}. This is a bug.")
-                    elif len(matching_devices) > 1:
-                        logging.error(f"More than one device matched {topic}. This is a bug.")
-                    else:
-                        mqtt_device = matching_devices[0]
+            if topic.startswith(self.command_prefix) and topic.endswith("set"):
+                '''
+                Look for messages indicating a command from the user.
+                TODO: Make this section gracefully accept devices which are handled by another MQTT instance
+                '''
+                # Get the device to which this message belongs
+                # There is certainly a better way to do this but I am lazy
+                matching_devices = [mqtt_device for mqtt_device in self.tracked_devices.values() if topic.startswith(mqtt_device.topic_root())]
+                matching_devices = matching_devices + [mqtt_device for mqtt_device in self.unpaired_devices.values() if topic.startswith(mqtt_device.topic_root())]
+                if len(matching_devices) == 0:
+                    logging.error(f"No devices matched {topic}. This is a bug.")
+                elif len(matching_devices) > 1:
+                    logging.error(f"More than one device matched {topic}. This is a bug.")
+                else:
+                    mqtt_device = matching_devices[0]
 
-                        try:
-                            await mqtt_device.handle_command(self, topic, message.payload.decode())
-                        except Exception as e:
-                            # Something went wrong with this device, did it become unavailable?
-                            logging.warn(f"Error occurred handling {topic}, {e}")
+                    try:
+                        await mqtt_device.handle_command(self, topic, message.payload.decode())
+                    except Exception as e:
+                        # Something went wrong with this device, did it become unavailable?
+                        logging.warn(f"Error occurred handling {topic}, {e}")
     
     async def start_device_listener(self, mqtt) -> None:
         """
